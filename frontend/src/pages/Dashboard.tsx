@@ -1,48 +1,93 @@
 import React, { useState, useEffect } from 'react';
 import StepGraph from '../components/Graph/StepGraph';
-import ExecutionTimeline from '../components/Timeline/ExecutionTimeline';
 import StepDetails from '../components/Panels/StepDetails';
-import ReplayButton from '../components/Controls/ReplayButton';
-import PauseButton from '../components/Controls/PauseButton';
+import WorkflowInput from '../components/Controls/WorkflowInput';
 import { useGraph } from '../hooks/useGraph';
 import { useStream } from '../hooks/useStream';
+import { streamManager } from '../services/StreamManager';
 import { api } from '../services/api';
+
+interface ConnectionStatus {
+  api: boolean;
+  websocket: 'disconnected' | 'connecting' | 'connected' | 'error';
+}
 
 export default function Dashboard() {
   const { graph, setGraph } = useGraph();
   const { connected } = useStream();
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [executions, setExecutions] = useState<any[]>([]);
+  const [currentExecutionId, setCurrentExecutionId] = useState<string | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({
+    api: false,
+    websocket: 'disconnected'
+  });
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Initial connection check
+    checkConnections();
+    
     // Load initial data
     loadExecutions();
     
-    // Set up real-time updates
-    const ws = new WebSocket(import.meta.env.VITE_WS_URL || 'ws://localhost:3000');
-    
-    ws.onmessage = (event) => {
-      const { event: eventType, data } = JSON.parse(event.data);
+    // Subscribe to stream events
+    const unsubscribeStream = streamManager.subscribe((event) => {
+      setError(null); // Clear errors when receiving data
       
-      if (eventType === 'graph:update') {
-        setGraph(data.graph);
-      } else if (eventType === 'execution:update') {
-        setExecutions(prev => [...prev, data]);
+      if (event.event === 'graph:update') {
+        setGraph(event.data.graph);
+      } else if (event.event === 'execution:update') {
+        setExecutions(prev => [...prev, event.data]);
+      } else if (event.event === 'step:complete') {
+        loadExecutions();
       }
-    };
+    });
+
+    // Subscribe to connection state changes
+    const unsubscribeConnectionState = streamManager.subscribeToConnectionState((state) => {
+      setConnectionStatus(prev => ({ ...prev, websocket: state }));
+    });
     
-    return () => ws.close();
+    // Periodic connection check
+    const connectionCheckInterval = setInterval(checkConnections, 10000);
+    
+    return () => {
+      unsubscribeStream();
+      unsubscribeConnectionState();
+      clearInterval(connectionCheckInterval);
+    };
   }, []);
+
+  const checkConnections = async () => {
+    const apiStatus = await api.healthCheck();
+    setConnectionStatus(prev => ({ ...prev, api: apiStatus }));
+  };
 
   const loadExecutions = async () => {
     try {
-      const data = await api.get('/executions');
-      setExecutions(data.executions || []);
-      if (data.graph) {
-        setGraph(data.graph);
+      setLoading(true);
+      const result = await api.get('/executions');
+      
+      if (result.success) {
+        setExecutions(result.data.executions || []);
+        if (result.data.graph) {
+          console.log('Setting graph data:', result.data.graph);
+          setGraph(result.data.graph);
+        } else {
+          console.log('No graph data in response:', result.data);
+        }
+        setError(null);
+      } else {
+        setError(`Failed to load executions: ${result.error}`);
       }
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      setError(`Failed to load executions: ${errorMessage}`);
       console.error('Failed to load executions:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -50,47 +95,124 @@ export default function Dashboard() {
     setSelectedNode(nodeId);
   };
 
-  const handleReplay = async () => {
-    try {
-      await api.post('/replay', { executionId: selectedNode });
-    } catch (error) {
-      console.error('Failed to replay:', error);
-    }
+  const handleWorkflowSubmit = async (executionId: string) => {
+    // This is called after execution starts, just update the current execution ID
+    setCurrentExecutionId(executionId);
+    // Refresh executions after a brief delay
+    setTimeout(loadExecutions, 1000);
   };
+
+  const retryConnection = () => {
+    setError(null);
+    streamManager.resetReconnectAttempts();
+    streamManager.connect().catch(error => {
+      setError(`Connection retry failed: ${error.message}`);
+    });
+    checkConnections();
+    loadExecutions();
+  };
+
+  // Connection status indicator
+  const renderConnectionStatus = () => {
+    const { api: apiConnected, websocket } = connectionStatus;
+    
+    return (
+      <div className="connection-status">
+        <div className={`status-indicator ${apiConnected ? 'connected' : 'disconnected'}`}>
+          API: {apiConnected ? '🟢 Connected' : '🔴 Disconnected'}
+        </div>
+        <div className={`status-indicator ${websocket === 'connected' ? 'connected' : 'disconnected'}`}>
+          WebSocket: {websocket === 'connected' ? '🟢 Connected' : 
+                     websocket === 'connecting' ? '🟡 Connecting' : 
+                     websocket === 'error' ? '🔴 Error' : '🔴 Disconnected'}
+        </div>
+      </div>
+    );
+  };
+
+  // Error banner
+  const renderErrorBanner = () => {
+    if (!error) return null;
+    
+    return (
+      <div className="error-banner">
+        <span>⚠️ {error}</span>
+        <button onClick={retryConnection} className="retry-button">
+          Retry Connection
+        </button>
+      </div>
+    );
+  };
+
+  // Offline fallback UI
+  if (!connectionStatus.api && !loading) {
+    return (
+      <div className="dashboard offline">
+        <div className="offline-message">
+          <h2>🔌 Backend Connection Lost</h2>
+          <p>Cannot connect to StepsOS backend at http://localhost:8080</p>
+          <div className="offline-actions">
+            <button onClick={retryConnection} className="retry-button">
+              Retry Connection
+            </button>
+            <div className="troubleshooting">
+              <h3>Troubleshooting:</h3>
+              <ul>
+                <li>Ensure the backend server is running: <code>node start-backend.js</code></li>
+                <li>Check if port 8080 is available</li>
+                <li>Verify no firewall is blocking the connection</li>
+              </ul>
+            </div>
+          </div>
+          {renderConnectionStatus()}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="dashboard">
-      <header className="dashboard-header">
-        <h1>StepsOS</h1>
-        <div className="status">
-          <span className={`connection-status ${connected ? 'connected' : 'disconnected'}`}>
-            {connected ? '🟢 Live' : '🔴 Disconnected'}
-          </span>
-        </div>
-      </header>
+      {renderConnectionStatus()}
+      {renderErrorBanner()}
+      
+      <div className="dashboard-header">
+        <h1>StepsOS Dashboard</h1>
+        {loading && <div className="loading-indicator">Loading...</div>}
+      </div>
 
       <div className="dashboard-content">
-        <div className="main-panel">
-          <div className="graph-container">
-            <h2>Execution Graph</h2>
-            <StepGraph graph={graph} onNodeClick={handleNodeClick} />
-          </div>
-          
-          <div className="timeline-container">
-            <h2>Execution Timeline</h2>
-            <ExecutionTimeline executions={executions} />
+        <div className="left-panel">
+          <WorkflowInput onExecutionStart={handleWorkflowSubmit} />
+          <div className="executions-list">
+            <h3>Recent Executions ({executions.length})</h3>
+            {executions.length === 0 ? (
+              <p>No executions yet. Submit a workflow to get started.</p>
+            ) : (
+              executions.slice(-5).reverse().map((execution, index) => (
+                <div key={execution.id || index} className="execution-item">
+                  <span className={`status ${execution.status}`}>
+                    {execution.status || 'unknown'}
+                  </span>
+                  <span className="id">{execution.id || 'unknown'}</span>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
-        <div className="side-panel">
-          <div className="controls">
-            <ReplayButton onClick={handleReplay} disabled={!selectedNode} />
-            <PauseButton />
-          </div>
-          
-          {selectedNode && (
-            <StepDetails stepId={selectedNode} />
-          )}
+        <div className="center-panel">
+          <StepGraph 
+            graph={graph} 
+            onNodeClick={handleNodeClick}
+            selectedNode={selectedNode}
+          />
+        </div>
+
+        <div className="right-panel">
+          <StepDetails 
+            selectedNode={selectedNode}
+            executionId={currentExecutionId}
+          />
         </div>
       </div>
     </div>

@@ -1,44 +1,112 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
-import { ai } from '../../services/ai';
 
 interface StepDetailsProps {
-  stepId: string;
+  selectedNode: string | null;
+  executionId: string | null;
 }
 
-export default function StepDetails({ stepId }: StepDetailsProps) {
+export default function StepDetails({ selectedNode, executionId }: StepDetailsProps) {
   const [step, setStep] = useState<any>(null);
-  const [explanation, setExplanation] = useState<string>('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    loadStepDetails();
-  }, [stepId]);
+    if (selectedNode) {
+      loadStepDetails();
+    } else {
+      setStep(null);
+    }
+  }, [selectedNode, executionId]);
 
   const loadStepDetails = async () => {
-    try {
-      const data = await api.get(`/steps/${stepId}`);
-      setStep(data);
-    } catch (error) {
-      console.error('Failed to load step details:', error);
-    }
-  };
-
-  const explainStep = async () => {
+    if (!selectedNode) return;
+    
     setLoading(true);
     try {
-      const result = await ai.explain(stepId);
-      setExplanation(result.explanation);
+      // Get execution details to find step data
+      const result = await api.get('/executions');
+      
+      if (result.success) {
+        const executions = result.data.executions || [];
+        console.log('Available executions:', executions);
+        
+        // Use provided executionId or latest execution
+        let execution;
+        if (executionId) {
+          execution = executions.find((e: any) => e.id === executionId);
+        } else {
+          execution = executions[executions.length - 1]; // Latest execution
+        }
+        
+        console.log('Selected execution:', execution);
+        
+        if (execution && execution.steps) {
+          const stepData = execution.steps.find((s: any) => s.name === selectedNode);
+          console.log('Found step data:', stepData);
+          
+          if (stepData) {
+            setStep(stepData);
+          } else {
+            setStep({
+              name: selectedNode,
+              status: 'pending',
+              input: null,
+              output: null,
+              logs: [`Step ${selectedNode} not yet executed`]
+            });
+          }
+        } else {
+          setStep({
+            name: selectedNode,
+            status: 'unknown',
+            input: null,
+            output: null,
+            logs: ['No execution data available']
+          });
+        }
+      }
     } catch (error) {
-      console.error('Failed to get explanation:', error);
-      setExplanation('Failed to get AI explanation');
+      console.error('Failed to load step details:', error);
+      setStep({
+        name: selectedNode,
+        status: 'error',
+        input: null,
+        output: null,
+        logs: ['Failed to load step details']
+      });
     } finally {
       setLoading(false);
     }
   };
 
+  if (!selectedNode) {
+    return (
+      <div className="step-details">
+        <div className="no-selection">
+          <h3>No Step Selected</h3>
+          <p>Click on a step in the graph to view its details</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="step-details">
+        <div className="loading">Loading step details...</div>
+      </div>
+    );
+  }
+
   if (!step) {
-    return <div className="step-details loading">Loading step details...</div>;
+    return (
+      <div className="step-details">
+        <div className="no-data">
+          <h3>{selectedNode}</h3>
+          <p>No data available for this step</p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -50,16 +118,26 @@ export default function StepDetails({ stepId }: StepDetailsProps) {
 
       <div className="step-section">
         <h4>Input</h4>
-        <pre className="code-block">
-          {JSON.stringify(step.input, null, 2)}
-        </pre>
+        <div className="code-display">
+          {step.input ? (
+            <pre>{JSON.stringify(step.input, null, 2)}</pre>
+          ) : step.name === 'entry' && step.output ? (
+            <div className="empty-state">Entry step input is the execution input</div>
+          ) : (
+            <div className="empty-state">No input data</div>
+          )}
+        </div>
       </div>
 
       <div className="step-section">
         <h4>Output</h4>
-        <pre className="code-block">
-          {JSON.stringify(step.output, null, 2)}
-        </pre>
+        <div className="code-display">
+          {step.output ? (
+            <pre>{JSON.stringify(step.output, null, 2)}</pre>
+          ) : (
+            <div className="empty-state">No output data</div>
+          )}
+        </div>
       </div>
 
       {step.logs && step.logs.length > 0 && (
@@ -73,21 +151,14 @@ export default function StepDetails({ stepId }: StepDetailsProps) {
         </div>
       )}
 
-      <div className="step-section">
-        <h4>AI Explanation</h4>
-        <button 
-          onClick={explainStep} 
-          disabled={loading}
-          className="explain-button"
-        >
-          {loading ? 'Explaining...' : 'Explain This Step'}
-        </button>
-        {explanation && (
-          <div className="explanation">
-            {explanation}
+      {step.error && (
+        <div className="step-section">
+          <h4>Error</h4>
+          <div className="error-display">
+            {step.error}
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

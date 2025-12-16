@@ -1,5 +1,19 @@
 import React from 'react';
 
-export default function ReplayButton() {
-  return <button>Replay</button>;
+interface ReplayButtonProps {
+  onClick: () => void;
+  disabled?: boolean;
+  loading?: boolean;
+}
+
+export default function ReplayButton({ onClick, disabled, loading }: ReplayButtonProps) {
+  return (
+    <button 
+      onClick={onClick}
+      disabled={disabled}
+      className="replay-button"
+    >
+      {loading ? '⏳ Replaying...' : '🔄 Replay'}
+    </button>
+  );
 }

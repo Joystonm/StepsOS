@@ -1,0 +1,266 @@
+/* Connection Status Styles */
+.connection-status {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  gap: 10px;
+  z-index: 1000;
+}
+
+.status-indicator {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  background: rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+.status-indicator.connected {
+  background: rgba(34, 197, 94, 0.1);
+  border-color: rgba(34, 197, 94, 0.3);
+  color: #059669;
+}
+
+.status-indicator.disconnected {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #dc2626;
+}
+
+/* Error Banner */
+.error-banner {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  border-radius: 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.retry-button {
+  background: #dc2626;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.retry-button:hover {
+  background: #b91c1c;
+}
+
+/* Offline UI */
+.dashboard.offline {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background: #f9fafb;
+}
+
+.offline-message {
+  background: white;
+  padding: 32px;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  max-width: 500px;
+  text-align: center;
+}
+
+.offline-message h2 {
+  margin: 0 0 16px 0;
+  color: #374151;
+}
+
+.offline-message p {
+  color: #6b7280;
+  margin-bottom: 24px;
+}
+
+.offline-actions {
+  margin-bottom: 24px;
+}
+
+.troubleshooting {
+  text-align: left;
+  background: #f9fafb;
+  padding: 16px;
+  border-radius: 6px;
+  margin-top: 16px;
+}
+
+.troubleshooting h3 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  color: #374151;
+}
+
+.troubleshooting ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.troubleshooting li {
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: #6b7280;
+}
+
+.troubleshooting code {
+  background: #e5e7eb;
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-family: 'Monaco', 'Menlo', monospace;
+  font-size: 12px;
+}
+
+/* Loading Indicator */
+.loading-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.loading-indicator::before {
+  content: '';
+  width: 16px;
+  height: 16px;
+  border: 2px solid #e5e7eb;
+  border-top: 2px solid #3b82f6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Dashboard Layout Adjustments */
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  border-bottom: 1px solid #e5e7eb;
+  background: white;
+}
+
+.left-panel,
+.center-panel,
+.right-panel {
+  background: white;
+  overflow: hidden;
+  min-height: 0;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.left-panel {
+  padding: 16px;
+}
+
+.center-panel {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  min-height: 0; /* Important for flex items */
+}
+
+.center-panel .step-graph {
+  flex: 1;
+  min-height: 0; /* Allow shrinking */
+  height: 100%;
+}
+
+.right-panel {
+  padding: 16px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Responsive layout */
+@media (max-width: 768px) {
+  .dashboard-content {
+    grid-template-columns: 1fr !important;
+    grid-template-rows: auto 1fr auto;
+  }
+  
+  .center-panel {
+    order: 1;
+  }
+  
+  .left-panel {
+    order: 0;
+  }
+  
+  .right-panel {
+    order: 2;
+  }
+}
+
+/* Executions List */
+.executions-list {
+  margin-top: 24px;
+}
+
+.executions-list h3 {
+  margin: 0 0 12px 0;
+  font-size: 16px;
+  color: #374151;
+}
+
+.execution-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  margin-bottom: 4px;
+  font-size: 12px;
+}
+
+.execution-item .status {
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.execution-item .status.completed {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.execution-item .status.failed {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.execution-item .status.running {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.execution-item .status.skipped {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.execution-item .id {
+  font-family: 'Monaco', 'Menlo', monospace;
+  color: #6b7280;
+}
