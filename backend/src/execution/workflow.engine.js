@@ -166,10 +166,15 @@ class WorkflowEngine {
         
         // Update graph
         this.updateStepStatus(execution, stepId, 'completed');
+        
+        // Emit structured execution event for data lineage
         eventsStream.emit('step:complete', { 
           stepId, 
           status: 'completed',
+          input: currentInput,
           output,
+          usedFields: this.extractUsedFields(stepId, currentInput, output),
+          executionTime: new Date(stepExecution.endTime) - new Date(stepExecution.startTime),
           timestamp: new Date().toISOString() 
         });
         
@@ -387,6 +392,21 @@ class WorkflowEngine {
     execution.graph.nodes = execution.graph.nodes.map(node =>
       node.id === stepId ? { ...node, status } : node
     );
+  }
+  
+  extractUsedFields(stepId, input, output) {
+    // Track which fields were read/validated/transformed
+    const usedFields = [];
+    
+    if (stepId === 'validate') {
+      // Validation step reads all required fields
+      usedFields.push('fileId', 'fileName', 'fileSizeMB', 'fileType', 'uploadedBy', 'checksum');
+    } else if (stepId === 'process') {
+      // Process step uses validation results
+      usedFields.push('validated', 'fileId', 'fileName');
+    }
+    
+    return usedFields;
   }
   
   getExecution(executionId) {
