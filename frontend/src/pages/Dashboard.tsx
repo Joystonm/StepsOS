@@ -138,20 +138,7 @@ export default function Dashboard() {
 
   // Connection status indicator
   const renderConnectionStatus = () => {
-    const { api: apiConnected, websocket } = connectionStatus;
-    
-    return (
-      <div className="connection-status">
-        <div className={`status-indicator ${apiConnected ? 'connected' : 'disconnected'}`}>
-          API: {apiConnected ? '🟢 Connected' : '🔴 Disconnected'}
-        </div>
-        <div className={`status-indicator ${websocket === 'connected' ? 'connected' : 'disconnected'}`}>
-          WebSocket: {websocket === 'connected' ? '🟢 Connected' : 
-                     websocket === 'connecting' ? '🟡 Connecting' : 
-                     websocket === 'error' ? '🔴 Error' : '🔴 Disconnected'}
-        </div>
-      </div>
-    );
+    return null;
   };
 
   // Error banner

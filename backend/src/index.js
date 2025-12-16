@@ -578,6 +578,66 @@ const server = createServer((req, res) => {
     return;
   }
 
+  // Auto-recovery endpoint
+  if (req.url === '/ai/auto-recovery' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const { executionId, stepId, stepData } = JSON.parse(body);
+        
+        const suggestion = await generateAutoRecovery(stepData);
+        
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, data: { suggestion } }));
+      } catch (error) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: error.message }));
+      }
+    });
+    return;
+  }
+
+  // AI Chat endpoint
+  if (req.url === '/ai/chat' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const { executionId, stepId, message, context } = JSON.parse(body);
+        
+        const response = await generateChatResponse(message, context);
+        
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, data: { response } }));
+      } catch (error) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: error.message }));
+      }
+    });
+    return;
+  }
+
+  // AI Improvements endpoint
+  if (req.url === '/ai/improvements' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const { executionId, stepId, stepData } = JSON.parse(body);
+        
+        const suggestions = await generateImprovements(stepData);
+        
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, data: { suggestions } }));
+      } catch (error) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: error.message }));
+      }
+    });
+    return;
+  }
+
   res.writeHead(404);
   res.end('Not found');
 });
@@ -766,6 +826,175 @@ function generateStepAnalysis(stepData) {
   } else {
     return `Execution in progress: ${completedSteps.length}/${steps.length} steps completed. Current status: ${stepData.status}. Monitor remaining steps for completion.`;
   }
+}
+
+// Auto-recovery AI function
+async function generateAutoRecovery(stepData) {
+  try {
+    if (!process.env.GROQ_API_KEY) {
+      return generateMockRecovery(stepData);
+    }
+
+    const prompt = `This workflow step failed. Generate a specific fix:
+
+Step: ${stepData.name}
+Status: ${stepData.status}
+Error: ${stepData.error}
+Input: ${JSON.stringify(stepData.input)}
+
+Provide a concise fix suggestion in this format:
+**Issue:** [brief problem description]
+**Fix:** [specific solution]
+**Code:** [any code changes needed]
+
+Keep under 150 words.`;
+
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'llama-3.1-8b-instant',
+        messages: [
+          { role: 'system', content: 'You are a workflow debugging expert. Provide specific, actionable fixes.' },
+          { role: 'user', content: prompt }
+        ],
+        max_tokens: 200,
+        temperature: 0.3
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Groq API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.choices[0]?.message?.content || 'Auto-recovery analysis unavailable.';
+  } catch (error) {
+    console.error('Auto-recovery error:', error);
+    return generateMockRecovery(stepData);
+  }
+}
+
+// Chat response AI function
+async function generateChatResponse(message, context) {
+  try {
+    if (!process.env.GROQ_API_KEY) {
+      return `I understand you're asking about "${message}". This step ${context?.status || 'has issues'}. Let me help you debug this workflow step.`;
+    }
+
+    const prompt = `User question: "${message}"
+
+Context - Step: ${context?.name}, Status: ${context?.status}, Error: ${context?.error}
+Input: ${JSON.stringify(context?.input || {})}
+Output: ${JSON.stringify(context?.output || {})}
+
+Provide a helpful, conversational response. Be specific and actionable. Keep under 100 words.`;
+
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'llama-3.1-8b-instant',
+        messages: [
+          { role: 'system', content: 'You are a helpful AI assistant for workflow debugging. Be conversational and specific.' },
+          { role: 'user', content: prompt }
+        ],
+        max_tokens: 150,
+        temperature: 0.7
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Groq API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.choices[0]?.message?.content || 'I apologize, but I cannot provide a response right now.';
+  } catch (error) {
+    console.error('Chat response error:', error);
+    return `I understand you're asking about "${message}". Let me help you with this workflow step issue.`;
+  }
+}
+
+// Mock recovery for fallback
+function generateMockRecovery(stepData) {
+  if (stepData.error?.includes('Unsupported fileType')) {
+    return `**Issue:** File type validation failed\n**Fix:** Update validation rules to support ${stepData.input?.fileType}\n**Code:** Add "${stepData.input?.fileType}" to allowed file types array`;
+  }
+  return `**Issue:** Step "${stepData.name}" failed\n**Fix:** Check input data format and validation rules\n**Code:** Review step configuration and retry`;
+}
+
+// Improvements generation function
+async function generateImprovements(stepData) {
+  try {
+    if (!process.env.GROQ_API_KEY) {
+      return generateMockImprovements(stepData);
+    }
+
+    const prompt = `Suggest improvements for this workflow step:
+
+Step: ${stepData.name}
+Status: ${stepData.status}
+Input: ${JSON.stringify(stepData.input)}
+Output: ${JSON.stringify(stepData.output)}
+
+Provide 2-3 specific improvement suggestions focusing on:
+- Performance optimization
+- Error handling
+- Data validation
+- User experience
+
+Format as simple bullet points, keep each under 50 words.`;
+
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'llama-3.1-8b-instant',
+        messages: [
+          { role: 'system', content: 'You are a workflow optimization expert. Provide specific, actionable improvements.' },
+          { role: 'user', content: prompt }
+        ],
+        max_tokens: 200,
+        temperature: 0.5
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Groq API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const content = data.choices[0]?.message?.content || '';
+    return content.split('\n').filter(line => line.trim().startsWith('-') || line.trim().startsWith('•')).map(line => line.replace(/^[-•]\s*/, ''));
+  } catch (error) {
+    console.error('Improvements error:', error);
+    return generateMockImprovements(stepData);
+  }
+}
+
+// Mock improvements for fallback
+function generateMockImprovements(stepData) {
+  const improvements = [
+    'Add input validation with detailed error messages',
+    'Implement retry logic with exponential backoff',
+    'Add progress indicators for long-running operations'
+  ];
+  
+  if (stepData.status === 'failed') {
+    improvements.push('Add fallback processing for unsupported file types');
+  }
+  
+  return improvements.slice(0, 3);
 }
 
 server.listen(8080, () => {
