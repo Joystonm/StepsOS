@@ -1,5 +1,13 @@
 import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
+import { config } from 'dotenv';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+// Load .env from parent directory
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+config({ path: join(__dirname, '../../.env') });
 
 const executions = new Map();
 const wsClients = new Set();
@@ -419,6 +427,133 @@ const server = createServer((req, res) => {
     return;
   }
 
+  // Get execution graph with data lineage
+  if (req.url.startsWith('/api/executions/') && req.url.endsWith('/graph') && req.method === 'GET') {
+    const executionId = req.url.split('/')[3];
+    const execution = executions.get(executionId);
+    
+    if (!execution) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Execution not found' }));
+      return;
+    }
+    
+    // Build execution graph with data lineage
+    const executionGraph = {
+      nodes: [],
+      edges: [],
+      metadata: {
+        executionId,
+        status: execution.status,
+        startTime: execution.startTime,
+        endTime: execution.endTime
+      }
+    };
+    
+    // Convert steps to graph nodes with input/output data
+    if (execution.steps) {
+      execution.steps.forEach((step, index) => {
+        executionGraph.nodes.push({
+          id: step.name,
+          type: 'step',
+          status: step.status,
+          input: step.input,
+          output: step.output,
+          error: step.error,
+          logs: step.logs,
+          x: 400,
+          y: 100 + (index * 120)
+        });
+        
+        // Add edges between consecutive steps
+        if (index > 0) {
+          executionGraph.edges.push({
+            from: execution.steps[index - 1].name,
+            to: step.name
+          });
+        }
+      });
+    }
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, graph: executionGraph }));
+    return;
+  }
+
+  // Step-specific AI Analysis endpoint
+  if (req.url === '/ai/analyze-step' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const { executionId, stepId, stepData } = JSON.parse(body);
+        const execution = executions.get(executionId);
+        
+        if (!execution) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false, error: 'Execution not found' }));
+          return;
+        }
+        
+        // Use the step data provided by frontend
+        const analysisData = {
+          executionId,
+          stepId,
+          stepData: stepData || {}
+        };
+        
+        // Call AI for step analysis
+        const analysis = await analyzeStepWithGroq(analysisData);
+        
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, data: { analysis } }));
+      } catch (error) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: error.message }));
+      }
+    });
+    return;
+  }
+
+  // AI Analysis endpoint
+  if (req.url === '/ai/analyze' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const { executionId } = JSON.parse(body);
+        const execution = executions.get(executionId);
+        
+        if (!execution) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false, error: 'Execution not found' }));
+          return;
+        }
+        
+        // Prepare execution data for AI analysis
+        const executionSummary = {
+          status: execution.status,
+          steps: execution.steps.map(step => ({
+            name: step.name,
+            status: step.status,
+            error: step.error,
+            logs: step.logs?.slice(0, 3) // Limit logs for brevity
+          }))
+        };
+        
+        // Call Groq AI for analysis
+        const analysis = await analyzeExecutionWithGroq(executionSummary);
+        
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, data: { analysis } }));
+      } catch (error) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: error.message }));
+      }
+    });
+    return;
+  }
+
   if (req.url?.startsWith('/steps/')) {
     const stepId = req.url.split('/')[2];
     const latest = Array.from(executions.values()).pop();
@@ -471,6 +606,167 @@ server.on('error', (error) => {
     process.exit(1);
   }
 });
+
+// Groq AI Analysis Function
+async function analyzeExecutionWithGroq(executionData) {
+  try {
+    if (!process.env.GROQ_API_KEY) {
+      return generateMockAnalysis(executionData);
+    }
+
+    const prompt = `Analyze this workflow execution data and provide a brief summary:
+
+Execution Status: ${executionData.status}
+Total Steps: ${executionData.steps.length}
+Completed Steps: ${executionData.steps.filter(s => s.status === 'completed').length}
+Failed Steps: ${executionData.steps.filter(s => s.status === 'failed').length}
+
+Step Details:
+${executionData.steps.map(step => `- ${step.name}: ${step.status} ${step.error ? `(Error: ${step.error})` : ''}`).join('\n')}
+
+Please provide a concise analysis focusing on:
+1. Overall execution status
+2. Any issues or failures
+3. Performance insights
+4. Recommendations
+
+Keep the response under 150 words.`;
+
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'llama-3.1-8b-instant',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an AI assistant that analyzes workflow executions. Provide concise, actionable insights.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        max_tokens: 200,
+        temperature: 0.3
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Groq API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.choices[0]?.message?.content || 'Analysis completed but no content returned.';
+  } catch (error) {
+    console.error('Groq API error:', error);
+    return generateMockAnalysis(executionData);
+  }
+}
+
+function generateMockAnalysis(executionData) {
+  const failedSteps = executionData.steps.filter(step => step.status === 'failed');
+  const completedSteps = executionData.steps.filter(step => step.status === 'completed');
+  
+  if (failedSteps.length > 0) {
+    const failedStep = failedSteps[0];
+    return `Execution failed at ${failedStep.name} step. ${failedStep.error || 'Validation error detected'}. Recommend checking input data format and validation rules before retrying.`;
+  } else if (executionData.status === 'completed') {
+    return `Execution completed successfully with ${completedSteps.length} steps processed. All validation checks passed and data was processed without issues. System is operating normally.`;
+  } else {
+    return `Execution is ${executionData.status}. ${completedSteps.length} steps completed so far. Monitor for completion or check for any blocking issues.`;
+  }
+}
+
+// Step-specific AI Analysis Function
+async function analyzeStepWithGroq(stepData) {
+  try {
+    console.log('🤖 Groq API Key present:', !!process.env.GROQ_API_KEY);
+    if (!process.env.GROQ_API_KEY) {
+      console.log('🤖 Using mock analysis - no API key');
+      return generateStepAnalysis(stepData);
+    }
+
+    const prompt = `Analyze this workflow step and provide a brief, structured summary:
+
+Step: ${stepData.stepId || 'Unknown'}
+Status: ${stepData.stepData?.status || 'unknown'}
+Input: ${JSON.stringify(stepData.stepData?.input || {})}
+Output: ${JSON.stringify(stepData.stepData?.output || {})}
+Error: ${stepData.stepData?.error || 'none'}
+Logs: ${stepData.stepData?.logs?.length || 0} entries
+
+Provide analysis in this exact format:
+• Status: [brief status description]
+• Issue: [main problem if any, or "None"]
+• Recommendation: [one actionable suggestion]
+
+Keep response under 100 words, no markdown formatting.`;
+
+    console.log('🤖 Calling Groq API...');
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'llama-3.1-8b-instant',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an AI assistant that analyzes workflow execution data. Provide concise, actionable insights.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        max_tokens: 300,
+        temperature: 0.3
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.log('🤖 Groq API error details:', errorText);
+      throw new Error(`Groq API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const analysis = data.choices[0]?.message?.content || 'Analysis completed but no content returned.';
+    console.log('🤖 Groq analysis received:', analysis.substring(0, 100) + '...');
+    return `🤖 GROQ AI: ${analysis}`;
+  } catch (error) {
+    console.error('🤖 Groq API error:', error.message);
+    console.log('🤖 Falling back to mock analysis');
+    return `📝 MOCK: ${generateStepAnalysis(stepData)}`;
+  }
+}
+
+function generateStepAnalysis(stepData) {
+  const steps = stepData.steps;
+  const failedSteps = steps.filter(step => step.status === 'failed');
+  const completedSteps = steps.filter(step => step.status === 'completed');
+  
+  if (failedSteps.length > 0) {
+    const failedStep = failedSteps[0];
+    const inputSummary = failedStep.input ? Object.keys(failedStep.input).join(', ') : 'No input';
+    const outputSummary = failedStep.output ? 'Partial output generated' : 'No output produced';
+    
+    return `Step "${failedStep.name}" failed during execution. Input: ${inputSummary}. ${outputSummary}. Error: ${failedStep.error || 'Unknown error'}. Logs indicate ${failedStep.logs?.length || 0} events. Recommendation: Verify input data and retry execution.`;
+  } else if (stepData.status === 'completed') {
+    const totalInputFields = steps.reduce((acc, step) => acc + (step.input ? Object.keys(step.input).length : 0), 0);
+    const totalOutputFields = steps.reduce((acc, step) => acc + (step.output ? Object.keys(step.output).length : 0), 0);
+    
+    return `All ${steps.length} steps completed successfully. Processed ${totalInputFields} input fields and generated ${totalOutputFields} output fields. Data transformation pipeline executed without errors. System performance is optimal.`;
+  } else {
+    return `Execution in progress: ${completedSteps.length}/${steps.length} steps completed. Current status: ${stepData.status}. Monitor remaining steps for completion.`;
+  }
+}
 
 server.listen(8080, () => {
   console.log('✅ StepsOS Backend running on http://localhost:8080');

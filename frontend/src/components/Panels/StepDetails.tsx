@@ -9,6 +9,8 @@ interface StepDetailsProps {
 export default function StepDetails({ selectedNode, executionId }: StepDetailsProps) {
   const [step, setStep] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [aiAnalyzing, setAiAnalyzing] = useState(false);
+  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
 
   useEffect(() => {
     if (selectedNode) {
@@ -76,6 +78,43 @@ export default function StepDetails({ selectedNode, executionId }: StepDetailsPr
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAIAnalysis = async () => {
+    console.log('AI Analysis clicked', { executionId, step: step?.name });
+    if (!executionId || !step) {
+      console.log('Missing executionId or step');
+      setAiAnalysis('Error: Missing execution or step data');
+      return;
+    }
+    
+    setAiAnalyzing(true);
+    try {
+      console.log('Calling AI analysis API...');
+      const result = await api.post('/ai/analyze-step', {
+        executionId: executionId,
+        stepId: step.name,
+        stepData: {
+          input: step.input,
+          output: step.output,
+          logs: step.logs,
+          error: step.error,
+          status: step.status
+        }
+      });
+      
+      console.log('AI Analysis result:', result);
+      if (result.success) {
+        setAiAnalysis(result.data.data.analysis);
+      } else {
+        setAiAnalysis(`Analysis failed: ${result.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('AI Analysis failed:', error);
+      setAiAnalysis('Backend connection failed. Please ensure the backend is running.');
+    } finally {
+      setAiAnalyzing(false);
     }
   };
 
@@ -148,6 +187,56 @@ export default function StepDetails({ selectedNode, executionId }: StepDetailsPr
               <div key={index} className="log-entry">{log}</div>
             ))}
           </div>
+          
+          {/* AI Analysis Button */}
+          <button 
+            className="ai-analysis-button"
+            onClick={handleAIAnalysis}
+            disabled={aiAnalyzing}
+            style={{ marginTop: '12px', fontSize: '12px', padding: '8px 16px' }}
+          >
+            {aiAnalyzing ? (
+              <>
+                <div className="animate-spin w-3 h-3 border-2 border-white border-t-transparent rounded-full"></div>
+                Analyzing...
+              </>
+            ) : (
+              <>
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                </svg>
+                AI Analysis
+              </>
+            )}
+          </button>
+          
+          {/* AI Analysis Result */}
+          {aiAnalysis && (
+            <div className="ai-analysis-panel" style={{ marginTop: '12px' }}>
+              <div className="flex items-center justify-between mb-2">
+                <h5 style={{ fontSize: '12px', fontWeight: '600', color: '#374151' }}>AI Analysis</h5>
+                <button
+                  onClick={() => setAiAnalysis(null)}
+                  style={{ 
+                    background: 'none', 
+                    border: 'none', 
+                    fontSize: '16px', 
+                    color: '#6b7280', 
+                    cursor: 'pointer',
+                    padding: '2px 6px',
+                    borderRadius: '4px'
+                  }}
+                  onMouseOver={(e) => e.target.style.color = '#374151'}
+                  onMouseOut={(e) => e.target.style.color = '#6b7280'}
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="bg-blue-50 border border-blue-200 rounded p-2">
+                <p style={{ fontSize: '12px', color: '#1e40af' }}>{aiAnalysis}</p>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

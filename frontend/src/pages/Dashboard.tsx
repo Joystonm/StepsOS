@@ -6,6 +6,7 @@ import { useGraph } from '../hooks/useGraph';
 import { useStream } from '../hooks/useStream';
 import { streamManager } from '../services/StreamManager';
 import { api } from '../services/api';
+import '../styles/execution-graph.css';
 
 interface ConnectionStatus {
   api: boolean;
@@ -18,6 +19,8 @@ export default function Dashboard() {
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [executions, setExecutions] = useState<any[]>([]);
   const [currentExecutionId, setCurrentExecutionId] = useState<string | null>(null);
+  const [aiAnalyzing, setAiAnalyzing] = useState(false);
+  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({
     api: false,
     websocket: 'disconnected'
@@ -102,6 +105,27 @@ export default function Dashboard() {
     setTimeout(loadExecutions, 1000);
   };
 
+  const handleAIAnalysis = async () => {
+    if (!currentExecutionId) return;
+    
+    setAiAnalyzing(true);
+    try {
+      const result = await api.post('/ai/analyze', {
+        executionId: currentExecutionId
+      });
+      
+      if (result.success) {
+        setAiAnalysis(result.data.analysis);
+      } else {
+        setError(`AI Analysis failed: ${result.error}`);
+      }
+    } catch (error) {
+      setError(`AI Analysis error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setAiAnalyzing(false);
+    }
+  };
+
   const retryConnection = () => {
     setError(null);
     streamManager.resetReconnectAttempts();
@@ -183,6 +207,9 @@ export default function Dashboard() {
       <div className="dashboard-content">
         <div className="left-panel">
           <WorkflowInput onExecutionStart={handleWorkflowSubmit} />
+          
+
+          
           <div className="executions-list">
             <h3>Recent Executions ({executions.length})</h3>
             {executions.length === 0 ? (
@@ -198,6 +225,24 @@ export default function Dashboard() {
               ))
             )}
           </div>
+          
+          {/* AI Analysis Panel */}
+          {aiAnalysis && (
+            <div className="ai-analysis-panel">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-medium text-gray-900">AI Analysis</h3>
+                <button
+                  onClick={() => setAiAnalysis(null)}
+                  className="text-gray-400 hover:text-gray-600 text-sm"
+                >
+                  ×
+                </button>
+              </div>
+              <div className="bg-blue-50 border border-blue-200 rounded p-3">
+                <p className="text-sm text-blue-900">{aiAnalysis}</p>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="center-panel">
