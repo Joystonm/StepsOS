@@ -9,6 +9,8 @@ interface StepDetailsProps {
 export default function StepDetails({ selectedNode, executionId }: StepDetailsProps) {
   const [step, setStep] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [showAiAnalysis, setShowAiAnalysis] = useState(false);
+  const [aiAnalysis, setAiAnalysis] = useState('');
 
   useEffect(() => {
     if (selectedNode) {
@@ -76,6 +78,28 @@ export default function StepDetails({ selectedNode, executionId }: StepDetailsPr
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAiAnalysis = async () => {
+    setShowAiAnalysis(true);
+    setAiAnalysis('Analyzing step logs...');
+    
+    try {
+      const response = await api.post('/ai-analysis', {
+        stepName: step.name,
+        logs: step.logs,
+        status: step.status,
+        error: step.error
+      });
+      
+      if (response.success) {
+        setAiAnalysis(response.data.analysis);
+      } else {
+        setAiAnalysis('Failed to generate AI analysis');
+      }
+    } catch (error) {
+      setAiAnalysis('Error: Unable to connect to AI analysis service');
     }
   };
 
@@ -148,6 +172,9 @@ export default function StepDetails({ selectedNode, executionId }: StepDetailsPr
               <div key={index} className="log-entry">{log}</div>
             ))}
           </div>
+          <button className="ai-analysis-btn" onClick={handleAiAnalysis}>
+            AI Analysis
+          </button>
         </div>
       )}
 
@@ -156,6 +183,20 @@ export default function StepDetails({ selectedNode, executionId }: StepDetailsPr
           <h4>Error</h4>
           <div className="error-display">
             {step.error}
+          </div>
+        </div>
+      )}
+
+      {showAiAnalysis && (
+        <div className="ai-modal-overlay" onClick={() => setShowAiAnalysis(false)}>
+          <div className="ai-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="ai-modal-header">
+              <h3>AI Analysis - {step.name}</h3>
+              <button className="close-btn" onClick={() => setShowAiAnalysis(false)}>×</button>
+            </div>
+            <div className="ai-modal-content">
+              <pre>{aiAnalysis}</pre>
+            </div>
           </div>
         </div>
       )}

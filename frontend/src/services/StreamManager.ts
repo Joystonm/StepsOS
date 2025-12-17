@@ -61,7 +61,7 @@ class StreamManager {
       this.setConnectionState('connecting');
       
       try {
-        const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8080';
+        const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:4000';
         console.log(`StreamManager: Connecting to ${wsUrl}`);
         this.ws = new WebSocket(wsUrl);
         
