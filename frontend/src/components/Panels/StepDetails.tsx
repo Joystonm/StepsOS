@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
+import { AIChatbot } from '../AIChatbot';
 
 interface StepDetailsProps {
   selectedNode: string | null;
@@ -9,8 +10,7 @@ interface StepDetailsProps {
 export default function StepDetails({ selectedNode, executionId }: StepDetailsProps) {
   const [step, setStep] = useState<any>(null);
   const [loading, setLoading] = useState(false);
-  const [showAiAnalysis, setShowAiAnalysis] = useState(false);
-  const [aiAnalysis, setAiAnalysis] = useState('');
+  const [aiChatOpen, setAiChatOpen] = useState(false);
 
   useEffect(() => {
     if (selectedNode) {
@@ -81,27 +81,7 @@ export default function StepDetails({ selectedNode, executionId }: StepDetailsPr
     }
   };
 
-  const handleAiAnalysis = async () => {
-    setShowAiAnalysis(true);
-    setAiAnalysis('Analyzing step logs...');
-    
-    try {
-      const response = await api.post('/ai-analysis', {
-        stepName: step.name,
-        logs: step.logs,
-        status: step.status,
-        error: step.error
-      });
-      
-      if (response.success) {
-        setAiAnalysis(response.data.analysis);
-      } else {
-        setAiAnalysis('Failed to generate AI analysis');
-      }
-    } catch (error) {
-      setAiAnalysis('Error: Unable to connect to AI analysis service');
-    }
-  };
+
 
   if (!selectedNode) {
     return (
@@ -172,8 +152,17 @@ export default function StepDetails({ selectedNode, executionId }: StepDetailsPr
               <div key={index} className="log-entry">{log}</div>
             ))}
           </div>
-          <button className="ai-analysis-btn" onClick={handleAiAnalysis}>
-            AI Analysis
+          
+          {/* AI Assistant Button */}
+          <button 
+            className="ai-analysis-button"
+            onClick={() => setAiChatOpen(true)}
+            style={{ marginTop: '12px', fontSize: '12px', padding: '8px 16px' }}
+          >
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+            </svg>
+            AI Assistant
           </button>
         </div>
       )}
@@ -187,19 +176,12 @@ export default function StepDetails({ selectedNode, executionId }: StepDetailsPr
         </div>
       )}
 
-      {showAiAnalysis && (
-        <div className="ai-modal-overlay" onClick={() => setShowAiAnalysis(false)}>
-          <div className="ai-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="ai-modal-header">
-              <h3>AI Analysis - {step.name}</h3>
-              <button className="close-btn" onClick={() => setShowAiAnalysis(false)}>×</button>
-            </div>
-            <div className="ai-modal-content">
-              <pre>{aiAnalysis}</pre>
-            </div>
-          </div>
-        </div>
-      )}
+      <AIChatbot
+        isOpen={aiChatOpen}
+        onClose={() => setAiChatOpen(false)}
+        executionId={executionId || ''}
+        step={step}
+      />
     </div>
   );
 }
