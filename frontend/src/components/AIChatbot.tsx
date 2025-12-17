@@ -60,9 +60,10 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ isOpen, onClose, execution
         stepData: step
       });
 
+      console.log('Analysis result:', analysisResult);
       if (analysisResult.success) {
         setAnalysis({
-          summary: analysisResult.data.data.analysis.replace('🤖 GROQ AI: ', ''),
+          summary: (analysisResult.data?.data?.data?.analysis || analysisResult.data?.data?.analysis || 'No analysis available').replace('🤖 GROQ AI: ', ''),
           fixes: recoveryResult?.success ? [recoveryResult.data.suggestion] : [],
           improvements: improvementResult?.success ? improvementResult.data.suggestions : []
         });
@@ -112,21 +113,8 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({ isOpen, onClose, execution
                 </div>
               </div>
 
-              {/* Fix Suggestions */}
-              {analysis.fixes.length > 0 && (
-                <div className="analysis-section">
-                  <h4>🔧 Fix Suggestions</h4>
-                  {analysis.fixes.map((fix, index) => (
-                    <div key={index} className="analysis-card fix-card">
-                      <div dangerouslySetInnerHTML={{ __html: fix.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
-                      <button className="apply-fix-btn">Apply Fix</button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
               {/* Improvements */}
-              {analysis.improvements.length > 0 && (
+              {analysis?.improvements?.length > 0 && (
                 <div className="analysis-section">
                   <h4>💡 Improvements</h4>
                   {analysis.improvements.map((improvement, index) => (
