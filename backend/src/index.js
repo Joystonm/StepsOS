@@ -20,7 +20,7 @@ function analyzeStep(stepData) {
   if (status === 'failed') {
     return `❌ ${stepName} step failed: ${error}
 
-💡 Quick Fix: ${error.includes('fileType') ? 'Use supported file types: PNG, JPEG, GIF' : 'Check input validation rules'}
+💡 Quick Fix: ${error.includes('fileType') ? 'Use supported file types: PNG, JPEG, GIF, PDF' : 'Check input validation rules'}
 
 📋 Input Issues: ${error.includes('fileType') ? 'Unsupported file format detected' : 'Validation failed'}`;
   } else {
@@ -105,7 +105,7 @@ const server = createServer((req, res) => {
       const input = requestData.input || requestData;
       const executionId = `exec_${Date.now()}`;
       
-      const supportedTypes = ['image/png', 'image/jpeg', 'image/gif'];
+      const supportedTypes = ['image/png', 'image/jpeg', 'image/gif', 'application/pdf'];
       let validationError = null;
       
       // Check fileId

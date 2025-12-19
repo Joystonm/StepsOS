@@ -1,6 +1,17 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 const Docs: React.FC = () => {
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+
+  const copyToClipboard = async (text: string, index: number) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedIndex(index);
+      setTimeout(() => setCopiedIndex(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy text: ', err);
+    }
+  };
   const containerStyle = {
     minHeight: '100vh',
     background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
@@ -93,6 +104,49 @@ const Docs: React.FC = () => {
     margin: '0 8px 8px 0'
   };
 
+  const copyButtonStyle = {
+    position: 'absolute' as const,
+    top: '12px',
+    right: '12px',
+    background: '#4a5568',
+    color: 'white',
+    border: 'none',
+    borderRadius: '6px',
+    padding: '6px 12px',
+    fontSize: '0.8rem',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease'
+  };
+
+  const copyButtonHoverStyle = {
+    ...copyButtonStyle,
+    background: '#667eea'
+  };
+
+  const CodeBlock: React.FC<{ code: string; index: number }> = ({ code, index }) => (
+    <div style={{ position: 'relative' }}>
+      <pre style={codeBlockStyle}>
+        {code}
+      </pre>
+      <button
+        style={copiedIndex === index ? { ...copyButtonStyle, background: '#48bb78' } : copyButtonStyle}
+        onClick={() => copyToClipboard(code.trim(), index)}
+        onMouseEnter={(e) => {
+          if (copiedIndex !== index) {
+            (e.target as HTMLButtonElement).style.background = '#667eea';
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (copiedIndex !== index) {
+            (e.target as HTMLButtonElement).style.background = '#4a5568';
+          }
+        }}
+      >
+        {copiedIndex === index ? '✓ Copied!' : '📋 Copy'}
+      </button>
+    </div>
+  );
+
   return (
     <div style={containerStyle}>
       <div style={headerStyle}>
@@ -168,8 +222,9 @@ const Docs: React.FC = () => {
         <section style={sectionStyle}>
           <h2 style={headingStyle}>📝 Basic Workflow Example</h2>
           <p style={textStyle}>Here's a simple file upload workflow input:</p>
-          <pre style={codeBlockStyle}>
-{`{
+          <CodeBlock 
+            index={0}
+            code={`{
   "executionId": "exec_001",
   "workflowId": "file_upload_flow",
   "input": {
@@ -181,7 +236,7 @@ const Docs: React.FC = () => {
     "checksum": "abc123xyz"
   }
 }`}
-          </pre>
+          />
           
           <h3 style={subHeadingStyle}>Field Explanations</h3>
           <ul style={listStyle}>
@@ -207,8 +262,9 @@ const Docs: React.FC = () => {
           <div style={{ display: 'flex', gap: '8px', marginBottom: '1rem' }}>
             <span style={{ ...badgeStyle, background: '#48bb78' }}>✅ Valid Input</span>
           </div>
-          <pre style={codeBlockStyle}>
-{`{
+          <CodeBlock 
+            index={1}
+            code={`{
   "executionId": "exec_002",
   "workflowId": "file_upload_flow",
   "input": {
@@ -220,13 +276,14 @@ const Docs: React.FC = () => {
     "checksum": "def456uvw"
   }
 }`}
-          </pre>
+          />
           
           <div style={{ display: 'flex', gap: '8px', marginBottom: '1rem' }}>
             <span style={{ ...badgeStyle, background: '#f56565' }}>❌ Invalid Input</span>
           </div>
-          <pre style={codeBlockStyle}>
-{`{
+          <CodeBlock 
+            index={2}
+            code={`{
   "executionId": "exec_003",
   "workflowId": "file_upload_flow",
   "input": {
@@ -238,7 +295,7 @@ const Docs: React.FC = () => {
     "checksum": "ghi789rst"
   }
 }`}
-          </pre>
+          />
           
           <p style={textStyle}>
             <span style={strongStyle}>Validation behavior:</span> The invalid input above would fail validation due to 
@@ -257,8 +314,9 @@ const Docs: React.FC = () => {
         <section style={sectionStyle}>
           <h2 style={headingStyle}>🚀 Large Input / Stress Test Example</h2>
           <p style={textStyle}>StepsOS handles complex inputs with extensive metadata:</p>
-          <pre style={codeBlockStyle}>
-{`{
+          <CodeBlock 
+            index={3}
+            code={`{
   "executionId": "exec_stress_001",
   "workflowId": "enterprise_document_flow",
   "input": {
@@ -290,7 +348,7 @@ const Docs: React.FC = () => {
     }
   }
 }`}
-          </pre>
+          />
           
           <p style={textStyle}>
             <span style={strongStyle}>Visual scaling:</span> Even with complex nested data, StepsOS maintains a clean 
@@ -335,30 +393,6 @@ const Docs: React.FC = () => {
           <p style={textStyle}>
             Waiting for batch processing to complete before seeing results slows development and debugging. 
             Real-time updates let you catch issues immediately and understand execution patterns as they happen.
-          </p>
-        </section>
-
-        <section style={sectionStyle}>
-          <h2 style={headingStyle}>❓ FAQ / Common Questions</h2>
-          
-          <h3 style={subHeadingStyle}>What happens when validation fails?</h3>
-          <p style={textStyle}>
-            Validation failures immediately stop execution. The graph shows the validate step as failed 
-            with detailed error messages. Subsequent processing steps are skipped to prevent invalid 
-            data from propagating.
-          </p>
-          
-          <h3 style={subHeadingStyle}>Can workflows be extended?</h3>
-          <p style={textStyle}>
-            Yes. StepsOS uses a modular step system where new steps can be added without affecting 
-            existing workflows. Each step is self-contained with clear interfaces.
-          </p>
-          
-          <h3 style={subHeadingStyle}>Is StepsOS workflow-agnostic?</h3>
-          <p style={textStyle}>
-            Absolutely. While the examples show file processing, StepsOS can handle any workflow that 
-            benefits from step-based execution: data pipelines, API integrations, business processes, 
-            or any multi-stage operation requiring observability.
           </p>
         </section>
       </div>
