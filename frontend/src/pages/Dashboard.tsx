@@ -161,7 +161,7 @@ export default function Dashboard() {
       <div className="dashboard offline">
         <div className="offline-message">
           <h2>🔌 Backend Connection Lost</h2>
-          <p>Cannot connect to StepsOS backend at http://localhost:8080</p>
+          <p>Cannot connect to StepsOS backend at {import.meta.env.VITE_API_URL || 'http://localhost:3333'}</p>
           <div className="offline-actions">
             <button onClick={retryConnection} className="retry-button">
               Retry Connection
@@ -170,7 +170,7 @@ export default function Dashboard() {
               <h3>Troubleshooting:</h3>
               <ul>
                 <li>Ensure the backend server is running: <code>node start-backend.js</code></li>
-                <li>Check if port 8080 is available</li>
+                <li>Check if port 3333 is available</li>
                 <li>Verify no firewall is blocking the connection</li>
               </ul>
             </div>

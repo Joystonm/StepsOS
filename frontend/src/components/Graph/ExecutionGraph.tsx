@@ -23,7 +23,7 @@ export default function ExecutionGraph({ executionId, onClose }: ExecutionGraphP
   const loadExecutionGraph = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`http://localhost:8080/api/executions/${executionId}/graph`);
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3333'}/api/executions/${executionId}/graph`);
       const data = await response.json();
       if (data.success) setGraph(data.graph);
     } catch (error) {
