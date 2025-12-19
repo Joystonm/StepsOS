@@ -187,7 +187,7 @@ export default function Dashboard() {
       {renderErrorBanner()}
       
       <div className="dashboard-header">
-        <h1>StepsOS Dashboard</h1>
+
         {loading && <div className="loading-indicator">Loading...</div>}
       </div>
 

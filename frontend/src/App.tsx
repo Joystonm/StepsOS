@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import Dashboard from './pages/Dashboard';
 import Home from './pages/Home';
+import Docs from './pages/Docs';
 
 function Navbar() {
   const location = useLocation();
@@ -70,6 +71,12 @@ function Navbar() {
           >
             Dashboard
           </Link>
+          <Link 
+            to="/docs" 
+            style={location.pathname === '/docs' ? activeLinkStyle : linkStyle}
+          >
+            Docs
+          </Link>
         </div>
       </div>
     </nav>
@@ -84,6 +91,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/docs" element={<Docs />} />
         </Routes>
       </div>
     </Router>
