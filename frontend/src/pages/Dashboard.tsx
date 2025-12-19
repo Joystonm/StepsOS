@@ -161,7 +161,7 @@ export default function Dashboard() {
       <div className="dashboard offline">
         <div className="offline-message">
           <h2>🔌 Backend Connection Lost</h2>
-          <p>Cannot connect to StepsOS backend at {import.meta.env.VITE_API_URL || 'http://localhost:3333'}</p>
+          <p>Cannot connect to StepsOS backend at {import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:3333' : window.location.origin)}</p>
           <div className="offline-actions">
             <button onClick={retryConnection} className="retry-button">
               Retry Connection

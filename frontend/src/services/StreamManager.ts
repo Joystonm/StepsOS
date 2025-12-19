@@ -61,7 +61,7 @@ class StreamManager {
       this.setConnectionState('connecting');
       
       try {
-        const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:3333';
+        const wsUrl = import.meta.env.VITE_WS_URL || (window.location.hostname === 'localhost' ? 'ws://localhost:3333' : `wss://${window.location.host}`);
         console.log(`StreamManager: Connecting to ${wsUrl}`);
         this.ws = new WebSocket(wsUrl);
         
