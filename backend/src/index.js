@@ -1,5 +1,11 @@
 import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
+import { readFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const executions = new Map();
 const wsClients = new Set();
@@ -28,6 +34,42 @@ function analyzeStep(stepData) {
 
 📊 Status: All validation checks passed
 🎯 Result: Data processed without issues`;
+  }
+}
+
+// Serve static files
+function serveStaticFile(req, res) {
+  const frontendPath = join(__dirname, '../../frontend/dist');
+  let filePath = join(frontendPath, req.url === '/' ? 'index.html' : req.url);
+  
+  try {
+    const content = readFileSync(filePath);
+    const ext = filePath.split('.').pop();
+    const contentType = {
+      'html': 'text/html',
+      'js': 'application/javascript',
+      'css': 'text/css',
+      'png': 'image/png',
+      'jpg': 'image/jpeg',
+      'ico': 'image/x-icon'
+    }[ext] || 'text/plain';
+    
+    res.writeHead(200, { 'Content-Type': contentType });
+    res.end(content);
+    return true;
+  } catch (err) {
+    if (req.url !== '/' && !req.url.startsWith('/api')) {
+      // For SPA routing, serve index.html for non-API routes
+      try {
+        const indexContent = readFileSync(join(frontendPath, 'index.html'));
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(indexContent);
+        return true;
+      } catch (indexErr) {
+        return false;
+      }
+    }
+    return false;
   }
 }
 
@@ -217,8 +259,11 @@ const server = createServer((req, res) => {
     return;
   }
 
-  res.writeHead(404);
-  res.end('Not found');
+  // Try to serve static files
+  if (!serveStaticFile(req, res)) {
+    res.writeHead(404);
+    res.end('Not found');
+  }
 });
 
 const wss = new WebSocketServer({ 
@@ -243,8 +288,8 @@ wss.on('connection', (ws) => {
   ws.send(JSON.stringify({ event: 'connected', data: { message: 'Connected to StepsOS' } }));
 });
 
-server.listen(3333, () => {
-  console.log('✅ Backend running on http://localhost:3333');
-  console.log('🔌 WebSocket server ready on ws://localhost:3333');
+server.listen(process.env.PORT || 3333, () => {
+  console.log(`✅ Backend running on http://localhost:${process.env.PORT || 3333}`);
+  console.log(`🔌 WebSocket server ready on ws://localhost:${process.env.PORT || 3333}`);
   console.log('📊 AI Analysis endpoint: POST /ai/analyze-step');
 });
